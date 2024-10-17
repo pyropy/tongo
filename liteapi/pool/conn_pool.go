@@ -264,15 +264,16 @@ func (p *ConnPool) BestMasterchainInfoClient() *MasterchainInfoClient {
 }
 
 // BestMasterchainClient returns a liteclient and its known masterchain head.
-func (p *ConnPool) BestMasterchainClient(ctx context.Context) (*liteclient.Client, ton.BlockIDExt, error) {
+func (p *ConnPool) BestMasterchainClient(ctx context.Context, blockID ton.BlockID) (*liteclient.Client, ton.BlockIDExt, error) {
 	bestConnection := p.bestConnection()
 	if bestConnection == nil {
 		return nil, ton.BlockIDExt{}, ErrNoConnections
 	}
-	masterHead := bestConnection.MasterHead()
-	if masterHead.Seqno > 0 {
-		return bestConnection.Client(), bestConnection.MasterHead(), nil
-	}
+
+	//masterHead := bestConnection.MasterHead()
+	//if masterHead.Seqno >= blockID.Seqno {
+	//	return bestConnection.Client(), masterHead, nil
+	//}
 	// so this client is not initialized yet,
 	// let's wait for it to be initialized.
 	waitID, ch := p.subscribe(1)
@@ -299,12 +300,12 @@ func (p *ConnPool) BestClientByAccountID(ctx context.Context, accountID ton.Acco
 	if archiveRequired {
 		return p.BestArchiveClient(ctx)
 	}
-	return p.BestMasterchainClient(ctx)
+	return p.BestMasterchainClient(ctx, ton.BlockID{})
 }
 
 // BestClientByBlockID returns a liteclient and its known masterchain head.
 func (p *ConnPool) BestClientByBlockID(ctx context.Context, blockID ton.BlockID) (*liteclient.Client, error) {
-	server, _, err := p.BestMasterchainClient(ctx)
+	server, _, err := p.BestMasterchainClient(ctx, blockID)
 	return server, err
 }
 

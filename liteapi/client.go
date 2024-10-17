@@ -303,6 +303,13 @@ func (c *Client) targetBlockOr(blockID ton.BlockIDExt) ton.BlockIDExt {
 	return *c.targetBlockID
 }
 
+func (c *Client) targetBlock() *ton.BlockIDExt {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.targetBlockID
+}
+
 func (c *Client) WithBlock(block ton.BlockIDExt) *Client {
 	return &Client{
 		pool:          c.pool,
@@ -327,7 +334,7 @@ func (c *Client) GetMasterchainInfoExt(ctx context.Context, mode uint32) (litecl
 }
 
 func (c *Client) GetTime(ctx context.Context) (uint32, error) {
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return 0, err
 	}
@@ -336,7 +343,7 @@ func (c *Client) GetTime(ctx context.Context) (uint32, error) {
 }
 
 func (c *Client) GetVersion(ctx context.Context) (liteclient.LiteServerVersionC, error) {
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return liteclient.LiteServerVersionC{}, err
 	}
@@ -477,7 +484,7 @@ func (c *Client) SendMessage(ctx context.Context, payload []byte) (uint32, error
 	if err := VerifySendMessagePayload(payload); err != nil {
 		return 0, err
 	}
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return 0, err
 	}
@@ -534,8 +541,8 @@ func (c *Client) RunSmcMethod(
 	return c.RunSmcMethodByID(ctx, accountID, utils.MethodIdFromName(method), params)
 }
 
-func (c *Client) GetAccountState(ctx context.Context, accountID ton.AccountID) (tlb.ShardAccount, error) {
-	res, err := c.GetAccountStateRaw(ctx, accountID)
+func (c *Client) GetAccountState(ctx context.Context, accountID ton.AccountID, blockID ton.BlockID) (tlb.ShardAccount, error) {
+	res, err := c.GetAccountStateRaw(ctx, accountID, blockID)
 	if err != nil {
 		return tlb.ShardAccount{}, err
 	}
@@ -558,15 +565,16 @@ func (c *Client) GetAccountState(ctx context.Context, accountID ton.AccountID) (
 	return tlb.ShardAccount{Account: acc, LastTransHash: hash, LastTransLt: lt}, err
 }
 
-func (c *Client) GetAccountStateRaw(ctx context.Context, accountID ton.AccountID) (liteclient.LiteServerAccountStateC, error) {
-	client, masterHead, err := c.pool.BestClientByAccountID(ctx, accountID, false)
+func (c *Client) GetAccountStateRaw(ctx context.Context, accountID ton.AccountID, blockID ton.BlockID) (liteclient.LiteServerAccountStateC, error) {
+	client, masterHead, err := c.pool.BestMasterchainClient(ctx, blockID)
 	if err != nil {
 		return liteclient.LiteServerAccountStateC{}, err
 	}
-	blockID := c.targetBlockOr(masterHead)
+
+	blockIDExt :=  c.targetBlockOr(masterHead)
 	res, err := client.LiteServerGetAccountState(ctx, liteclient.LiteServerGetAccountStateRequest{
 		Account: liteclient.AccountID(accountID),
-		Id:      liteclient.BlockIDExt(blockID),
+		Id:      liteclient.BlockIDExt(blockIDExt),
 	})
 	if err != nil {
 		return liteclient.LiteServerAccountStateC{}, err
@@ -614,7 +622,7 @@ func (c *Client) GetShardInfo(
 }
 
 func (c *Client) GetShardInfoRaw(ctx context.Context, blockID ton.BlockIDExt, workchain int32, shard uint64, exact bool) (liteclient.LiteServerShardInfoC, error) {
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return liteclient.LiteServerShardInfoC{}, err
 	}
@@ -658,7 +666,7 @@ func (c *Client) GetAllShardsInfo(ctx context.Context, blockID ton.BlockIDExt) (
 }
 
 func (c *Client) GetAllShardsInfoRaw(ctx context.Context, blockID ton.BlockIDExt) (liteclient.LiteServerAllShardsInfoC, error) {
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, blockID.BlockID)
 	if err != nil {
 		return liteclient.LiteServerAllShardsInfoC{}, err
 	}
@@ -777,7 +785,7 @@ func truncatedHistory(err error) bool {
 }
 
 func (c *Client) GetLastTransactions(ctx context.Context, a ton.AccountID, limit int) ([]ton.Transaction, error) {
-	state, err := c.GetAccountState(ctx, a)
+	state, err := c.GetAccountState(ctx, a, ton.BlockID{})
 	if err != nil {
 		return nil, err
 	}
@@ -896,7 +904,7 @@ func (c *Client) GetConfigAll(ctx context.Context, mode ConfigMode) (tlb.ConfigP
 }
 
 func (c *Client) GetConfigAllRaw(ctx context.Context, mode ConfigMode) (liteclient.LiteServerConfigInfoC, error) {
-	client, masterHead, err := c.pool.BestMasterchainClient(ctx)
+	client, masterHead, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return liteclient.LiteServerConfigInfoC{}, err
 	}
@@ -911,7 +919,7 @@ func (c *Client) GetConfigAllRaw(ctx context.Context, mode ConfigMode) (liteclie
 }
 
 func (c *Client) GetConfigParams(ctx context.Context, mode ConfigMode, paramList []uint32) (tlb.ConfigParams, error) {
-	client, masterHead, err := c.pool.BestMasterchainClient(ctx)
+	client, masterHead, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return tlb.ConfigParams{}, err
 	}
@@ -932,7 +940,7 @@ func (c *Client) GetValidatorStats(
 	startAfter *ton.Bits256,
 	modifiedAfter *uint32,
 ) (*tlb.McStateExtra, error) {
-	client, masterHead, err := c.pool.BestMasterchainClient(ctx)
+	client, masterHead, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return nil, err
 	}
@@ -971,7 +979,7 @@ func (c *Client) GetValidatorStats(
 }
 
 func (c *Client) GetLibraries(ctx context.Context, libraryList []ton.Bits256) (map[ton.Bits256]*boc.Cell, error) {
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return nil, err
 	}
@@ -1008,7 +1016,7 @@ func (c *Client) GetShardBlockProof(ctx context.Context) (liteclient.LiteServerS
 }
 
 func (c *Client) GetShardBlockProofRaw(ctx context.Context) (liteclient.LiteServerShardBlockProofC, error) {
-	client, masterHead, err := c.pool.BestMasterchainClient(ctx)
+	client, masterHead, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return liteclient.LiteServerShardBlockProofC{}, err
 	}
@@ -1025,7 +1033,7 @@ func (c *Client) WaitMasterchainSeqno(ctx context.Context, seqno uint32, timeout
 }
 
 func (c *Client) GetOutMsgQueueSizes(ctx context.Context) (liteclient.LiteServerOutMsgQueueSizesC, error) {
-	client, _, err := c.pool.BestMasterchainClient(ctx)
+	client, _, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return liteclient.LiteServerOutMsgQueueSizesC{}, err
 	}
@@ -1076,7 +1084,7 @@ func (c *Client) GetNetworkGlobalID(ctx context.Context) (int32, error) {
 	if networkID := c.getNetworkGlobalID(); networkID != nil {
 		return *networkID, nil
 	}
-	_, blockID, err := c.pool.BestMasterchainClient(ctx)
+	_, blockID, err := c.pool.BestMasterchainClient(ctx, ton.BlockID{})
 	if err != nil {
 		return 0, err
 	}

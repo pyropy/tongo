@@ -369,3 +369,20 @@ func (p *ConnPool) WaitMasterchainSeqno(ctx context.Context, seqno uint32, timeo
 		}
 	}
 }
+
+func (p *ConnPool) WithBestConnection(conn *liteclient.Connection) *ConnPool {
+	ch := make(chan masterHeadUpdated, 10)
+	pool := &ConnPool{
+		strategy:            BestPingStrategy,
+		updateBestInterval:  updateBestConnectionInterval,
+		waitList:            map[uint64]chan ton.BlockIDExt{},
+		masterHeadUpdatedCh: ch,
+		bestConn: &connection{
+			id:                  0,
+			client:              liteclient.NewClient(conn),
+			masterHeadUpdatedCh: ch,
+		},
+	}
+
+	return pool
+}

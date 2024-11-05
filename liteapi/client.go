@@ -310,15 +310,15 @@ func (c *Client) WithBlock(block ton.BlockIDExt) *Client {
 	}
 }
 
-func (c *Client) WithBestConnection(conn *liteclient.Connection) *Client {
+func (c *Client) WithBestConnection(conn *liteclient.Connection, masterHead ton.BlockIDExt) *Client {
 	return &Client{
-		pool: c.pool.WithBestConnection(conn),
+		pool: c.pool.WithBestConnection(conn, masterHead),
 	}
 }
 
-func (c *Client) WithBestClient(conn *liteclient.Client) *Client {
+func (c *Client) WithBestClient(conn *liteclient.Client, masterHead ton.BlockIDExt) *Client {
 	return &Client{
-		pool: c.pool.WithBestClient(conn),
+		pool: c.pool.WithBestClient(conn, masterHead),
 	}
 }
 

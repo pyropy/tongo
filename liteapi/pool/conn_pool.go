@@ -386,3 +386,20 @@ func (p *ConnPool) WithBestConnection(conn *liteclient.Connection) *ConnPool {
 
 	return pool
 }
+
+func (p *ConnPool) WithBestClient(client *liteclient.Client) *ConnPool {
+	ch := make(chan masterHeadUpdated, 10)
+	pool := &ConnPool{
+		strategy:            BestPingStrategy,
+		updateBestInterval:  updateBestConnectionInterval,
+		waitList:            map[uint64]chan ton.BlockIDExt{},
+		masterHeadUpdatedCh: ch,
+		bestConn: &connection{
+			id:                  0,
+			client:              client,
+			masterHeadUpdatedCh: ch,
+		},
+	}
+
+	return pool
+}

@@ -316,6 +316,12 @@ func (c *Client) WithBestConnection(conn *liteclient.Connection) *Client {
 	}
 }
 
+func (c *Client) WithBestClient(conn *liteclient.Client) *Client {
+	return &Client{
+		pool: c.pool.WithBestClient(conn),
+	}
+}
+
 func (c *Client) GetMasterchainInfo(ctx context.Context) (liteclient.LiteServerMasterchainInfoC, error) {
 	conn := c.pool.BestMasterchainInfoClient()
 	if conn == nil {
